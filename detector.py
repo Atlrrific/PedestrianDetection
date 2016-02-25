@@ -13,11 +13,18 @@ from picamera import PiCamera
 import time
 
 # initialize the camera and grab a reference to the raw camera capture
+resX = 240
+resY = 180
 camera = PiCamera()
-camera.resolution = (320, 240)
-camera.framerate = 3
-rawCapture = PiRGBArray(camera, size=(320, 240))
+camera.resolution = (resX,resY)
+camera.framerate = 10
+# camera.color_effects = (128, 128) # grayscale
+# 240, 180
+rawCapture = PiRGBArray(camera, size=(resX, resY))
 
+print(time.strftime("%H_%M_%S"))
+fourcc = cv2.VideoWriter_fourcc(*'XVID')
+out = cv2.VideoWriter(time.strftime("%H_%M_%S")+'.avi',fourcc, 20.0, (resX, resY))
 # construct the argument parse and parse the arguments
 # ap = argparse.ArgumentParser()
 # ap.add_argument("-i", "--images", required=True, help="path to images directory")
@@ -34,22 +41,22 @@ time.sleep(0.1)
 
 
 def classfier(testImage,threadNum,capTime):
-    print("\n\n\n\n",threadNum,capTime)
-    (rects, weights) = hog.detectMultiScale(testImage, winStride=(4, 4),
-        padding=(8, 8), scale=1.05)
+    print(threadNum,capTime)
+    (rects, weights) = hog.detectMultiScale(testImage, winStride=(8, 8),
+        padding=(8, 8), scale=1.1)
 
     rects = np.array([[x, y, x + w, y + h] for (x, y, w, h) in rects])
     pick = non_max_suppression(rects, probs=None, overlapThresh=0.65)
 
 	# draw the final bounding boxes
+    # if(pick):
     for (xA, yA, xB, yB) in pick:
         cv2.rectangle(testImage, (xA, yA), (xB, yB), (0, 255, 0), 2)
-
+    # print(pick,"\n");
     curTime = time.time()
-    print ("Total time from capture", curTime - capTime,"\n\n\n")
-    if(weights):
-        print(weights)
-        cv2.imshow("After NMS", testImage)
+    print ("Total time from capture", curTime - capTime)
+    out.write(testImage)
+    cv2.imshow("After NMS", testImage)
 
 # capture frames from the camera
 i = 0
@@ -67,28 +74,34 @@ for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=
     # print("FRAME Time", captureTime-prevTime)
     prevTime = captureTime
 
-    if frameCount == 3:
-        frameCount = 0
-        if i == 1:
-            t1 = Thread(target = classfier, args = (image,1,captureTime,))
-            t1.start()
-        if i == 2:
-            t2 = Thread(target = classfier, args = (image,2,captureTime,))
-            t2.start()
-        if i == 3:
-            t3 = Thread(target = classfier, args = (image,3,captureTime,))
-            t3.start()
-        if i == 4:
-            t4 = Thread(target = classfier, args = (image,4,captureTime,))
-            t4.start()
+    # if frameCount == 0:
+        # frameCount = 0
+    #if i == 0:
+    t1 = Thread(target = classfier, args = (image,i,captureTime,))
+    t1.start()
+    threadPick = t1.join()
 
-        i += 1
-        if i > 4:
-            i = 1
+    # if(threadPick):
+    #     print("Inside the rectable:", threadPick)
+    #     for (xA, yA, xB, yB) in threadPick:
+    #         cv2.rectangle(image, (xA, yA), (xB, yB), (0, 255, 0), 2)
+    # if i == 2:
+    #     t2 = Thread(target = classfier, args = (image,2,captureTime,))
+    #     t2.start()
+    # if i == 3:
+    #     t3 = Thread(target = classfier, args = (image,3,captureTime,))
+    #     t3.start()
+    # if i == 4:
+    #     t4 = Thread(target = classfier, args = (image,4,captureTime,))
+    #     t4.start()
 
-    frameCount+=1
+    #i += 1
+    #if i > 4:
+    #    i = 0
 
-    cv2.imshow("Frame", image)
+    # frameCount+=1
+
+    # cv2.imshow("Frame", image)
     key = cv2.waitKey(1) & 0xFF
 
 
