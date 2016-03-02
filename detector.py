@@ -6,6 +6,8 @@ import numpy as np
 import argparse
 import imutils
 import cv2
+import RPi.GPIO as GPIO
+
 from threading import Thread
 
 from picamera.array import PiRGBArray
@@ -33,15 +35,17 @@ out = cv2.VideoWriter(time.strftime("%H_%M_%S")+'.avi',fourcc, 20.0, (resX, resY
 # initialize the HOG descriptor/person detector
 hog = cv2.HOGDescriptor()
 hog.setSVMDetector(cv2.HOGDescriptor_getDefaultPeopleDetector())
-
-
+detectFlag = 0
+detectCounter = [0]
 # allow the camera to warmup
 time.sleep(0.1)
 
+GPIO.setmode(GPIO.BOARD)
 
+GPIO.setup(16, GPIO.OUT)
 
-def classfier(testImage,threadNum,capTime):
-    print(threadNum,capTime)
+def classfier(testImage,threadNum,capTime, detectCounter):
+    #print(threadNum,capTime)
     (rects, weights) = hog.detectMultiScale(testImage, winStride=(8, 8),
         padding=(8, 8), scale=1.1)
 
@@ -51,10 +55,15 @@ def classfier(testImage,threadNum,capTime):
 	# draw the final bounding boxes
     # if(pick):
     for (xA, yA, xB, yB) in pick:
+        print("Image detected")
+        detectFlag = 1
+        print("Counter Before", detectCounter[0])
+        detectCounter[0] = 0
+        print("Counter After", detectCounter[0])
         cv2.rectangle(testImage, (xA, yA), (xB, yB), (0, 255, 0), 2)
     # print(pick,"\n");
     curTime = time.time()
-    print ("Total time from capture", curTime - capTime)
+    #print ("Total time from capture", curTime - capTime)
     out.write(testImage)
     cv2.imshow("After NMS", testImage)
 
@@ -63,6 +72,13 @@ i = 0
 frameCount = 0
 prevTime = time.time()
 for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
+    if (detectCounter[0] < 10):
+        GPIO.output(16, GPIO.LOW)
+        print ("Waiting ", detectCounter[0])
+        detectCounter[0] += 1
+    else:
+        print("Detect Flag", detectCounter[0])
+        GPIO.output(16,GPIO.HIGH)
     # grab the raw NumPy array representing the image, then initialize the timestamp
     # and occupied/unoccupied text
     image = frame.array
@@ -77,7 +93,7 @@ for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=
     # if frameCount == 0:
         # frameCount = 0
     #if i == 0:
-    t1 = Thread(target = classfier, args = (image,i,captureTime,))
+    t1 = Thread(target = classfier, args = (image,i,captureTime,detectCounter))
     t1.start()
     threadPick = t1.join()
 
